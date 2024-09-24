@@ -1,54 +1,50 @@
-#!/usr/bin/python
+# SPDX-FileCopyrightText: 2019 Tony DiCola for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
 
-# Google Spreadsheet DHT Sensor Data-logging Example
+"""
+Google Spreadsheet DHT Sensor Data-logging Example
 
-# Depends on the 'gspread' and 'oauth2client' package being installed.  If you
-# have pip installed execute:
-#   sudo pip install gspread oauth2client
+Copyright (c) 2014 Adafruit Industries
+Author: Tony DiCola
+Modified by: Brent Rubell for Adafruit Industries
 
-# Also it's _very important_ on the Raspberry Pi to install the python-openssl
-# package because the version of Python is a bit old and can fail with Google's
-# new OAuth2 based authentication.  Run the following command to install the
-# the package:
-#   sudo apt-get update
-#   sudo apt-get install python-openssl
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-# Copyright (c) 2014 Adafruit Industries
-# Author: Tony DiCola
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-import json
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
 import sys
 import time
 import datetime
 
-import Adafruit_DHT
+import board
+import adafruit_dht
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Type of sensor, can be Adafruit_DHT.DHT11, Adafruit_DHT.DHT22, or Adafruit_DHT.AM2302.
-DHT_TYPE = Adafruit_DHT.DHT22
+# Type of sensor, can be `adafruit_dht.DHT11` or `adafruit_dht.DHT22`.
+# For the AM2302, use the `adafruit_dht.DHT22` class.
 
-# Example of sensor connected to Raspberry Pi pin 23
-DHT_PIN  = 23
-# Example of sensor connected to Beaglebone Black pin P8_11
-#DHT_PIN  = 'P8_11'
+# Example of sensor connected to Raspberry Pi Pin 23
+# Example of sensor connected to Beaglebone Black Pin P8_11
+# DHT_PIN  = 'P8_11'
+
+# Initialize the dht device, with data pin connected to:
+dhtDevice = adafruit_dht.DHT11(board.D4,use_pulseio=False)
 
 # Google Docs OAuth credential JSON file.  Note that the process for authenticating
 # with Google docs has changed as of ~April 2015.  You _must_ use OAuth2 to log
@@ -69,13 +65,13 @@ DHT_PIN  = 23
 # Then use the File -> Share... command in the spreadsheet to share it with read
 # and write acess to the email address above.  If you don't do this step then the
 # updates to the sheet will fail!
-GDOCS_OAUTH_JSON       = 'your SpreadsheetData-*.json file name'
+GDOCS_OAUTH_JSON       = 'data_logging.json'
 
 # Google Docs spreadsheet name.
-GDOCS_SPREADSHEET_NAME = 'your google docs spreadsheet name'
+GDOCS_SPREADSHEET_NAME = 'DHT Humidity Logs'
 
 # How long to wait (in seconds) between measurements.
-FREQUENCY_SECONDS      = 30
+FREQUENCY_SECONDS      = 2
 
 
 def login_open_sheet(oauth_key_file, spreadsheet):
@@ -84,15 +80,17 @@ def login_open_sheet(oauth_key_file, spreadsheet):
         scope =  ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
         credentials = ServiceAccountCredentials.from_json_keyfile_name(oauth_key_file, scope)
         gc = gspread.authorize(credentials)
-        worksheet = gc.open(spreadsheet).sheet1
+        worksheet = gc.open(spreadsheet).sheet1 # pylint: disable=redefined-outer-name
         return worksheet
-    except Exception as ex:
-        print('Unable to login and get spreadsheet.  Check OAuth credentials, spreadsheet name, and make sure spreadsheet is shared to the client_email address in the OAuth .json file!')
+    except Exception as ex: # pylint: disable=bare-except, broad-except
+        print('Unable to login and get spreadsheet.  Check OAuth credentials, spreadsheet name, \
+        and make sure spreadsheet is shared to the client_email address in the OAuth .json file!')
         print('Google sheet login failed with error:', ex)
         sys.exit(1)
 
 
-print('Logging sensor measurements to {0} every {1} seconds.'.format(GDOCS_SPREADSHEET_NAME, FREQUENCY_SECONDS))
+print('Logging sensor measurements to\
+ {0} every {1} seconds.'.format(GDOCS_SPREADSHEET_NAME, FREQUENCY_SECONDS))
 print('Press Ctrl-C to quit.')
 worksheet = None
 while True:
@@ -100,23 +98,25 @@ while True:
     if worksheet is None:
         worksheet = login_open_sheet(GDOCS_OAUTH_JSON, GDOCS_SPREADSHEET_NAME)
 
-    # Attempt to get sensor reading.
-    humidity, temp = Adafruit_DHT.read(DHT_TYPE, DHT_PIN)
-
-    # Skip to the next reading if a valid measurement couldn't be taken.
-    # This might happen if the CPU is under a lot of load and the sensor
-    # can't be reliably read (timing is critical to read the sensor).
-    if humidity is None or temp is None:
-        time.sleep(2)
-        continue
-
-    print('Temperature: {0:0.1f} C'.format(temp))
-    print('Humidity:    {0:0.1f} %'.format(humidity))
+    
 
     # Append the data in the spreadsheet, including a timestamp
     try:
+        # Attempt to get sensor reading.
+        temp = dhtDevice.temperature
+        humidity = dhtDevice.humidity
+
+        # Skip to the next reading if a valid measurement couldn't be taken.
+        # This might happen if the CPU is under a lot of load and the sensor
+        # can't be reliably read (timing is critical to read the sensor).
+        if humidity is None or temp is None or isinstance(temp,int)==False or isinstance(humidity,int) == False:
+            time.sleep(2)
+            continue
+
+        print('Temperature: {0:0.1f} C'.format(temp))
+        print('Humidity:    {0:0.1f} %'.format(humidity))
         worksheet.append_row((datetime.datetime.now().isoformat(), temp, humidity))
-    except:
+    except: # pylint: disable=bare-except, broad-except
         # Error appending data, most likely because credentials are stale.
         # Null out the worksheet so a login is performed at the top of the loop.
         print('Append error, logging in again')
