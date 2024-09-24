@@ -14,12 +14,11 @@ print (" ")
 
 try: 
    while True:
-      if GPIO.input(sensor):
+      if GPIO.input(sensor)==False:
           GPIO.output(led,True)
           print ("Object Detected")
-          while GPIO.input(sensor):
-              time.sleep(0.2)
-      else:
+          
+      if GPIO.input(sensor)==True:
           GPIO.output(led,False)
 
 
